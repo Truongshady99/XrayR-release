@@ -2,6 +2,6 @@
 
 ## Cài đặt 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/qtai2901/XrayR-release/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Truongshady99/XrayR-release/main/install.sh)
 ```
 
