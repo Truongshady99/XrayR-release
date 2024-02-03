@@ -27,7 +27,6 @@ install_1(){
 #   echo "ip vps : ${CertDomain}"
 #  echo "-------------------------------"
 
-CertDomain=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d'/' -f1)
 
 
   pre_install
@@ -51,18 +50,21 @@ echo -e "node thứ $((a+1))"
   read -p "chọn kiểu node(mặc định là v2ray):" NodeType
   if [ "$NodeType" == "1" ]; then
     NodeType="V2ray"
+    NodeName="Vmess"
     EnableVless="false"
   elif [ "$NodeType" == "2" ]; then
     NodeType="V2ray"
+    NodeName="Vless"
     EnableVless="true"
   elif [ "$NodeType" == "3" ]; then
     NodeType="Trojan"
+    NodeName="Trojan"
     EnableVless="false"
   else
     NodeType="V2ray"
     EnableVless="false"
   fi
-  echo "Bạn đã chọn $NodeType"
+  echo "Bạn đã chọn $NodeName"
   echo "--------------------------------"
 
 
@@ -142,8 +144,6 @@ clone_node(){
 #  echo "-------------------------------"
 
 
-CertDomain=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d'/' -f1)
-
  config
   
  
@@ -189,9 +189,9 @@ cat >>config.yml<<EOF
           ProxyProtocolVer: 0 # Send PROXY protocol version, 0 for dsable
       CertConfig:
         CertMode: file # Option about how to get certificate: none, file, http, dns. Choose "none" will forcedly disable the tls config.
-        CertDomain: "$CertDomain" # Domain to cert
-        CertFile: /etc/XrayR/file.crt # Provided if the CertMode is file
-        KeyFile: /etc/XrayR/file.key
+        CertDomain: "8.8.8.8" # Domain to cert
+        CertFile: /etc/XrayR/4ghatde.crt # Provided if the CertMode is file
+        KeyFile: /etc/XrayR/4ghatde.key
         Provider: alidns # DNS cert provider, Get the full support list here: https://go-acme.github.io/lego/dns/
         Email: test@me.com
         DNSEnv: # DNS ENV option used by DNS provider
@@ -208,8 +208,8 @@ EOF
  }
 
 case "${num}" in
-1) bash <(curl -Ls https://raw.githubusercontent.com/Truongshady99/XrayR-release/main/install.sh)
-openssl req -newkey rsa:2048 -x509 -sha256 -days 365 -nodes -out /etc/XrayR/file.crt -keyout /etc/XrayR/file.key -subj "/C=JP/ST=Tokyo/L=Chiyoda-ku/O=Google Trust Services LLC/CN=google.com"
+1) bash <(curl -Ls https://raw.githubusercontent.com/qtai2901/XrayR-release/main/install.sh)
+openssl req -newkey rsa:2048 -x509 -sha256 -days 365 -nodes -out /etc/XrayR/4ghatde.crt -keyout /etc/XrayR/4ghatde.key -subj "/C=JP/ST=Tokyo/L=Chiyoda-ku/O=Google Trust Services LLC/CN=google.com"
 cd /etc/XrayR
   cat >config.yml <<EOF
 Log:
