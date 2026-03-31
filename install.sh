@@ -150,6 +150,32 @@ check_status() {
     return 1
 }
 
+validate_cert_modes() {
+    local config_file="${config_dir}/config.yml"
+    local invalid=0
+    local value
+
+    if [[ ! -f "$config_file" ]]; then
+        return 0
+    fi
+
+    while IFS= read -r value; do
+        value=$(printf '%s' "$value" | sed -E 's/^[[:space:]]*CertMode:[[:space:]]*//; s/[[:space:]#].*$//' | tr '[:upper:]' '[:lower:]')
+        [[ -z "$value" ]] && continue
+
+        case "$value" in
+            none|file|http|tls|dns)
+                ;;
+            *)
+                echo -e "${red}Error:${plain} Unsupported CertMode '${value}' found in ${config_file}. Supported values: none, file, http, tls, dns."
+                invalid=1
+                ;;
+        esac
+    done < <(grep -E '^[[:space:]]*CertMode:[[:space:]]*' "$config_file" || true)
+
+    return "$invalid"
+}
+
 install_acme() {
     curl -fsSL https://get.acme.sh | sh
 }
@@ -183,9 +209,26 @@ download_repo_config() {
 }
 
 persist_installer_copy() {
-    if [[ -r "$0" ]]; then
-        cat "$0" > "${installer_copy}"
+    local source_path=""
+
+    if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+        source_path="${BASH_SOURCE[0]}"
+    elif [[ -n "${0:-}" ]]; then
+        source_path="$0"
+    fi
+
+    case "$source_path" in
+        /dev/fd/*|/proc/self/fd/*)
+            echo -e "${yellow}Warning:${plain} Installer was launched from a file descriptor, so it cannot safely persist itself to ${installer_copy}."
+            return 0
+            ;;
+    esac
+
+    if [[ -n "$source_path" && -r "$source_path" ]]; then
+        cp -f "$source_path" "${installer_copy}"
         chmod +x "${installer_copy}"
+    else
+        echo -e "${yellow}Warning:${plain} Could not persist the installer script to ${installer_copy}."
     fi
 }
 
@@ -381,13 +424,17 @@ install_xrayr() {
 
         echo "Fresh install detected. Please review ${config_dir}/config.yml before starting the service."
     else
-        systemctl start "${service_name}"
-        sleep 2
-        check_status
-        if [[ $? -eq 0 ]]; then
-            echo -e "XrayR restarted successfully."
+        if validate_cert_modes; then
+            systemctl start "${service_name}"
+            sleep 2
+            check_status
+            if [[ $? -eq 0 ]]; then
+                echo -e "XrayR restarted successfully."
+            else
+                echo -e "${yellow}Warning:${plain} XrayR may not have started correctly. Check logs with: XrayR log"
+            fi
         else
-            echo -e "${yellow}Warning:${plain} XrayR may not have started correctly. Check logs with: XrayR log"
+            echo -e "${yellow}Warning:${plain} XrayR was not restarted because the current config contains unsupported CertMode values."
         fi
     fi
 
