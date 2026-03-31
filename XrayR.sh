@@ -84,7 +84,7 @@ before_show_menu() {
 }
 
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/fsh2502/XrayR-release/main/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/fsh2502/XrayRTT-release/main/install.sh)
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -108,7 +108,7 @@ update() {
 #        fi
 #        return 0
 #    fi
-    bash <(curl -Ls https://raw.githubusercontent.com/fsh2502/XrayR-release/main/install.sh) $version
+    bash <(curl -Ls https://raw.githubusercontent.com/fsh2502/XrayRTT-release/main/install.sh) $version
     if [[ $? == 0 ]]; then
         echo -e "  Cập nhật hoàn tất, XrayR đã được khởi động lại tự động, vui lòng sử dụng XrayR log để xem nhật ký đang chạy ${plain}"
         exit
@@ -270,7 +270,7 @@ install_bbr() {
 }
 
 update_shell() {
-    wget -O /usr/bin/XrayR -N --no-check-certificate https://raw.githubusercontent.com/fsh2502/XrayR-release/main/XrayR.sh
+    wget -O /usr/bin/XrayR -N --no-check-certificate https://raw.githubusercontent.com/fsh2502/XrayRTT-release/main/XrayR.sh
     if [[ $? != 0 ]]; then
         echo ""
         echo -e "  Không tải được script xuống, vui lòng kiểm tra xem máy có thể kết nối với Github không${plain}"
