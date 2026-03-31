@@ -176,6 +176,21 @@ validate_cert_modes() {
     return "$invalid"
 }
 
+start_enabled_service() {
+    if validate_cert_modes; then
+        systemctl start "${service_name}"
+        sleep 2
+        check_status
+        if [[ $? -eq 0 ]]; then
+            echo -e "XrayR started successfully and will auto-start on VPS boot."
+        else
+            echo -e "${yellow}Warning:${plain} XrayR is enabled for VPS boot, but it may not have started correctly right now. Check logs with: XrayR log"
+        fi
+    else
+        echo -e "${yellow}Warning:${plain} XrayR was enabled for VPS boot, but it was not started because the current config contains unsupported CertMode values."
+    fi
+}
+
 install_acme() {
     curl -fsSL https://get.acme.sh | sh
 }
@@ -422,20 +437,10 @@ install_xrayr() {
             download_repo_config "config.yml.example" "config.yml"
         fi
 
-        echo "Fresh install detected. Please review ${config_dir}/config.yml before starting the service."
+        echo "Fresh install detected. The config template was placed at ${config_dir}/config.yml."
+        start_enabled_service
     else
-        if validate_cert_modes; then
-            systemctl start "${service_name}"
-            sleep 2
-            check_status
-            if [[ $? -eq 0 ]]; then
-                echo -e "XrayR restarted successfully."
-            else
-                echo -e "${yellow}Warning:${plain} XrayR may not have started correctly. Check logs with: XrayR log"
-            fi
-        else
-            echo -e "${yellow}Warning:${plain} XrayR was not restarted because the current config contains unsupported CertMode values."
-        fi
+        start_enabled_service
     fi
 
     persist_installer_copy
