@@ -1,209 +1,417 @@
-AAAAAAA#!/bin/bash
-
-rm -rf $0
+#!/bin/bash
 
 red='\033[0;31m'
 green='\033[0;32m'
 yellow='\033[0;33m'
 plain='\033[0m'
 
-cur_dir=$(pwd)
+repo="fsh2502/XrayRTT"
+release_repo="fsh2502/XrayRTT-release"
+repo_branch="main"
+config_base_url="https://raw.githubusercontent.com/${repo}/${repo_branch}/release/config"
+release_raw_base_url="https://raw.githubusercontent.com/${release_repo}/${repo_branch}"
+github_api_base="https://api.github.com/repos/${repo}"
+service_name="XrayR"
+install_dir="/usr/local/XrayR"
+config_dir="/etc/XrayR"
+binary_path="${install_dir}/XrayR"
+installer_copy="${install_dir}/install.sh"
 
-# check root
-[[ $EUID -ne 0 ]] && echo -e "  lỗi：${plain} Tập lệnh này phải được chạy với tư cách người dùng gốc！\n" && exit 1
-
-# check os
-if [[ -f /etc/redhat-release ]]; then
-    release="centos"
-elif cat /etc/issue | grep -Eqi "debian"; then
-    release="debian"
-elif cat /etc/issue | grep -Eqi "ubuntu"; then
-    release="ubuntu"
-elif cat /etc/issue | grep -Eqi "centos|red hat|redhat"; then
-    release="centos"
-elif cat /proc/version | grep -Eqi "debian"; then
-    release="debian"
-elif cat /proc/version | grep -Eqi "ubuntu"; then
-    release="ubuntu"
-elif cat /proc/version | grep -Eqi "centos|red hat|redhat"; then
-    release="centos"
-else
-    echo -e "  Phiên bản hệ thống không được phát hiện, vui lòng liên hệ với tác giả kịch bản！${plain}\n" && exit 1
+if [[ $EUID -ne 0 ]]; then
+    echo -e "${red}Error:${plain} This script must be run as root."
+    exit 1
 fi
 
-arch=$(arch)
-
-if [[ $arch == "x86_64" || $arch == "x64" || $arch == "amd64" ]]; then
-  arch="64"
-elif [[ $arch == "aarch64" || $arch == "arm64" ]]; then
-  arch="arm64-v8a"
-else
-  arch="64"
-  echo -e "  Không phát hiện được giản đồ, hãy sử dụng lược đồ mặc định: ${arch}${plain}"
+release=""
+if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    case "${ID:-}" in
+        centos|rhel|rocky|almalinux)
+            release="centos"
+            ;;
+        ubuntu)
+            release="ubuntu"
+            ;;
+        debian)
+            release="debian"
+            ;;
+    esac
 fi
 
-echo "  Ngành kiến ​​trúc: ${arch}"
+if [[ -z "$release" && -f /etc/redhat-release ]]; then
+    release="centos"
+fi
 
-if [ "$(getconf WORD_BIT)" != '32' ] && [ "$(getconf LONG_BIT)" != '64' ] ; then
-    echo "  Phần mềm này không hỗ trợ hệ thống 32-bit (x86), vui lòng sử dụng hệ thống 64-bit (x86_64), nếu phát hiện sai, vui lòng liên hệ với tác giả"
+if [[ -z "$release" && -f /etc/issue ]]; then
+    if grep -Eqi "debian" /etc/issue; then
+        release="debian"
+    elif grep -Eqi "ubuntu" /etc/issue; then
+        release="ubuntu"
+    elif grep -Eqi "centos|red hat|redhat" /etc/issue; then
+        release="centos"
+    fi
+fi
+
+if [[ -z "$release" && -f /proc/version ]]; then
+    if grep -Eqi "debian" /proc/version; then
+        release="debian"
+    elif grep -Eqi "ubuntu" /proc/version; then
+        release="ubuntu"
+    elif grep -Eqi "centos|red hat|redhat" /proc/version; then
+        release="centos"
+    fi
+fi
+
+if [[ -z "$release" ]]; then
+    echo -e "${red}Error:${plain} Unsupported operating system."
+    exit 1
+fi
+
+arch=$(uname -m)
+case "$arch" in
+    x86_64|x64|amd64)
+        arch="64"
+        ;;
+    i386|i686)
+        arch="32"
+        ;;
+    aarch64|arm64)
+        arch="arm64-v8a"
+        ;;
+    armv7l|armv7)
+        arch="arm32-v7a"
+        ;;
+    *)
+        arch="64"
+        echo -e "${yellow}Warning:${plain} Unknown architecture detected, defaulting to ${arch}."
+        ;;
+esac
+
+echo "Detected architecture: ${arch}"
+
+if [[ "$(getconf LONG_BIT 2>/dev/null)" != "64" && "$arch" != "32" ]]; then
+    echo -e "${red}Error:${plain} This script only supports architectures with available upstream assets."
     exit 2
 fi
 
 os_version=""
-
-# phiên bản của hệ điều hành
 if [[ -f /etc/os-release ]]; then
-    os_version=$(awk -F'[= ."]' '/VERSION_ID/{print $3}' /etc/os-release)
+    os_version=$(awk -F'[=.\"]+' '/^VERSION_ID=/{print $2}' /etc/os-release)
 fi
 if [[ -z "$os_version" && -f /etc/lsb-release ]]; then
-    os_version=$(awk -F'[= ."]+' '/DISTRIB_RELEASE/{print $2}' /etc/lsb-release)
+    os_version=$(awk -F'[=.\"]+' '/^DISTRIB_RELEASE=/{print $2}' /etc/lsb-release)
 fi
 
-if [[ x"${release}" == x"centos" ]]; then
-    if [[ ${os_version} -le 6 ]]; then
-        echo -e "  Vui lòng sử dụng CentOS 7 trở lên！${plain}\n" && exit 1
+if [[ -n "$os_version" ]]; then
+    if [[ "$release" == "centos" && "$os_version" -le 6 ]]; then
+        echo -e "${red}Error:${plain} Please use CentOS 7 or later."
+        exit 1
     fi
-elif [[ x"${release}" == x"ubuntu" ]]; then
-    if [[ ${os_version} -lt 16 ]]; then
-        echo -e "  Vui lòng sử dụng Ubuntu 16 trở lên！${plain}\n" && exit 1
+    if [[ "$release" == "ubuntu" && "$os_version" -lt 16 ]]; then
+        echo -e "${red}Error:${plain} Please use Ubuntu 16 or later."
+        exit 1
     fi
-elif [[ x"${release}" == x"debian" ]]; then
-    if [[ ${os_version} -lt 8 ]]; then
-        echo -e "  Vui lòng sử dụng Debian 8 trở lên！${plain}\n" && exit 1
+    if [[ "$release" == "debian" && "$os_version" -lt 8 ]]; then
+        echo -e "${red}Error:${plain} Please use Debian 8 or later."
+        exit 1
     fi
 fi
 
 install_base() {
-    if [[ x"${release}" == x"centos" ]]; then
-        yum install epel-release -y
-	yum install openssl -y
-        yum install wget curl unzip tar crontabs socat -y
-	firewall-cmd --zone=public --add-port=80/tcp --permanent
-	firewall-cmd --zone=public --add-port=443/tcp --permanent
-	firewall-cmd --reload
+    if [[ "$release" == "centos" ]]; then
+        yum install -y epel-release
+        yum install -y openssl wget curl unzip tar crontabs socat
+        if command -v firewall-cmd >/dev/null 2>&1; then
+            firewall-cmd --zone=public --add-port=80/tcp --permanent || true
+            firewall-cmd --zone=public --add-port=443/tcp --permanent || true
+            firewall-cmd --reload || true
+        fi
     else
         apt update -y
-	apt install openssl -y
-        apt install wget curl unzip tar cron socat -y
-	ufw allow 80
-	ufw allow 443
+        apt install -y openssl wget curl unzip tar cron socat
+        if command -v ufw >/dev/null 2>&1; then
+            ufw allow 80 || true
+            ufw allow 443 || true
+        fi
     fi
 }
 
-# 0: đang chạy, 1: không chạy, 2: chưa cài đặt
 check_status() {
-    if [[ ! -f /etc/systemd/system/XrayR.service ]]; then
+    if [[ ! -f /etc/systemd/system/${service_name}.service ]]; then
         return 2
     fi
-    temp=$(systemctl status XrayR | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
-    if [[ x"${temp}" == x"running" ]]; then
+
+    local temp
+    temp=$(systemctl is-active "${service_name}" 2>/dev/null || true)
+    if [[ "$temp" == "active" ]]; then
         return 0
-    else
-        return 1
     fi
+
+    return 1
 }
 
 install_acme() {
-    curl https://get.acme.sh | sh
+    curl -fsSL https://get.acme.sh | sh
 }
 
-install_XrayR() {
-    if [[ -e /usr/local/XrayR/ ]]; then
-        rm /usr/local/XrayR/ -rf
+get_latest_version() {
+    local version
+
+    version=$(
+        curl -fsSL "${github_api_base}/releases?per_page=1" \
+            | grep '"tag_name":' \
+            | head -n 1 \
+            | sed -E 's/.*"([^"]+)".*/\1/'
+    )
+
+    if [[ -z "$version" ]]; then
+        version=$(
+            curl -fsSL "${github_api_base}/tags?per_page=1" \
+                | grep '"name":' \
+                | head -n 1 \
+                | sed -E 's/.*"([^"]+)".*/\1/'
+        )
     fi
 
-    mkdir /usr/local/XrayR/ -p
-	cd /usr/local/XrayR/
+    printf '%s' "$version"
+}
 
-    if  [ $# == 0 ] ;then
-        last_version=$(curl -Ls "curl -Ls https://api.github.com/repos/fsh2502/XrayRTT/tags" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$last_version" ]]; then
-            echo -e "  Không phát hiện được phiên bản XrayR, có thể đã vượt quá giới hạn Github API, vui lòng thử lại sau hoặc chỉ định phiên bản XrayR để cài đặt $ theo cách thủ công{plain}"
+download_repo_config() {
+    local source_name="$1"
+    local target_name="${2:-$1}"
+    curl -fsSL -o "${config_dir}/${target_name}" "${config_base_url}/${source_name}"
+}
+
+persist_installer_copy() {
+    if [[ -r "$0" ]]; then
+        cat "$0" > "${installer_copy}"
+        chmod +x "${installer_copy}"
+    fi
+}
+
+create_systemd_service() {
+    if curl -fsSL -o "/etc/systemd/system/${service_name}.service" "${release_raw_base_url}/XrayR.service"; then
+        return 0
+    fi
+
+    cat > "/etc/systemd/system/${service_name}.service" <<EOF
+[Unit]
+Description=${service_name} Service
+After=network.target nss-lookup.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${install_dir}
+ExecStart=${binary_path} -c ${config_dir}/config.yml
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=51200
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
+create_manager_script() {
+    cat > /usr/bin/XrayR <<'EOF'
+#!/bin/bash
+
+service_name="XrayR"
+install_dir="/usr/local/XrayR"
+binary_path="${install_dir}/XrayR"
+installer_copy="${install_dir}/install.sh"
+config_file="/etc/XrayR/config.yml"
+
+show_help() {
+    echo "XrayR management commands:"
+    echo "  XrayR start              - Start XrayR"
+    echo "  XrayR stop               - Stop XrayR"
+    echo "  XrayR restart            - Restart XrayR"
+    echo "  XrayR status             - Show XrayR status"
+    echo "  XrayR enable             - Enable auto-start"
+    echo "  XrayR disable            - Disable auto-start"
+    echo "  XrayR log                - Show XrayR logs"
+    echo "  XrayR config             - Show the config file"
+    echo "  XrayR version            - Show installed version"
+    echo "  XrayR update [version]   - Re-run the bundled installer"
+    echo "  XrayR install [version]  - Re-run the bundled installer"
+    echo "  XrayR uninstall          - Remove XrayR"
+}
+
+require_root() {
+    if [[ $EUID -ne 0 ]]; then
+        echo "This command must be run as root."
+        exit 1
+    fi
+}
+
+case "${1:-}" in
+    "")
+        show_help
+        ;;
+    start|stop|restart|enable|disable)
+        require_root
+        systemctl "$1" "${service_name}"
+        ;;
+    status)
+        systemctl status "${service_name}" --no-pager
+        ;;
+    log)
+        journalctl -u "${service_name}" -e --no-pager
+        ;;
+    config)
+        cat "${config_file}"
+        ;;
+    version)
+        "${binary_path}" version
+        ;;
+    update|install)
+        require_root
+        if [[ -x "${installer_copy}" ]]; then
+            bash "${installer_copy}" "${2:-}"
+        else
+            echo "Bundled installer not found at ${installer_copy}"
             exit 1
         fi
-        echo -e "  Đã phát hiện phiên bản mới nhất của XrayR：${last_version}，bắt đầu cài đặt"
-        wget -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip https://github.com/fsh2502/XrayRTT/archive/refs/tags/${last_version}/XrayR-linux-${arch}.zip
-        if [[ $? -ne 0 ]]; then
-            echo -e "  Không tải xuống được XrayR, hãy đảm bảo máy chủ của bạn có thể tải xuống tệp Github ${plain}"
+        ;;
+    uninstall)
+        require_root
+        systemctl stop "${service_name}" >/dev/null 2>&1 || true
+        systemctl disable "${service_name}" >/dev/null 2>&1 || true
+        rm -f "/etc/systemd/system/${service_name}.service"
+        rm -f /usr/bin/XrayR /usr/bin/xrayr
+        rm -rf /usr/local/XrayR /etc/XrayR
+        systemctl daemon-reload
+        echo "XrayR removed."
+        ;;
+    *)
+        show_help
+        exit 1
+        ;;
+esac
+EOF
+
+    chmod +x /usr/bin/XrayR
+    ln -sf /usr/bin/XrayR /usr/bin/xrayr
+}
+
+install_xrayr() {
+    local last_version
+    local url
+
+    rm -rf "${install_dir}"
+    mkdir -p "${install_dir}"
+    mkdir -p "${config_dir}"
+    cd "${install_dir}" || exit 1
+
+    if [[ $# -eq 0 || -z "${1:-}" ]]; then
+        last_version=$(get_latest_version)
+        if [[ -z "$last_version" ]]; then
+            echo -e "${red}Error:${plain} Could not detect the latest XrayRTT version from GitHub."
             exit 1
         fi
+        echo -e "Detected latest XrayRTT version: ${green}${last_version}${plain}"
     else
-        last_version=$1
-        url="https://github.com/fsh2502/XrayRTT/releases/download/${last_version}/XrayR-linux-${arch}.zip"
-        echo -e "  Bắt đầu cài đặt XrayR v$1"
-        wget -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "  Không tải xuống được XrayR v $ 1, hãy đảm bảo rằng phiên bản này tồn tại ${plain}"
-            exit 1
-        fi
+        last_version="$1"
+        echo -e "Installing XrayRTT version: ${green}${last_version}${plain}"
     fi
 
-    unzip XrayR-linux.zip
-    rm XrayR-linux.zip -f
-    chmod +x XrayR
-    mkdir /etc/XrayR/ -p
-    rm /etc/systemd/system/XrayR.service -f
-    file="https://github.com/fsh2502/XrayR-release/raw/main/XrayR.service"
-    wget -N --no-check-certificate -O /etc/systemd/system/XrayR.service ${file}
-    #cp -f XrayR.service /etc/systemd/system/
+    url="https://github.com/${repo}/releases/download/${last_version}/XrayR-linux-${arch}.zip"
+    if ! wget -N --no-check-certificate -O "${install_dir}/XrayR-linux.zip" "$url"; then
+        echo -e "${red}Error:${plain} Failed to download XrayRTT from ${url}"
+        exit 1
+    fi
+
+    if ! unzip -o XrayR-linux.zip; then
+        echo -e "${red}Error:${plain} Failed to unzip XrayR-linux.zip"
+        exit 1
+    fi
+
+    rm -f XrayR-linux.zip
+
+    if [[ ! -f "${binary_path}" ]]; then
+        echo -e "${red}Error:${plain} XrayR binary not found after extraction."
+        exit 1
+    fi
+
+    chmod +x "${binary_path}"
+
+    create_systemd_service
     systemctl daemon-reload
-    systemctl stop XrayR
-    systemctl enable XrayR
-    echo -e "  XrayR ${last_version}${plain} Quá trình cài đặt hoàn tất, nó đã được thiết lập để bắt đầu tự động"
-    cp geoip.dat /etc/XrayR/
-    cp geosite.dat /etc/XrayR/ 
+    systemctl stop "${service_name}" >/dev/null 2>&1 || true
+    systemctl enable "${service_name}"
 
-    if [[ ! -f /etc/XrayR/config.yml ]]; then
-        cp config.yml /etc/XrayR/
-        echo -e ""
-        echo -e "  Cài đặt mới, vui lòng tham khảo hướng dẫn trước：https://github.com/XrayR-project/XrayR，Định cấu hình nội dung cần thiết"
+    for asset in geoip.dat geosite.dat dns.json route.json custom_outbound.json custom_inbound.json; do
+        if [[ -f "${install_dir}/${asset}" ]]; then
+            cp -f "${install_dir}/${asset}" "${config_dir}/${asset}"
+        fi
+    done
+
+    if [[ ! -f "${config_dir}/geoip.dat" ]]; then
+        download_repo_config "geoip.dat"
+    fi
+    if [[ ! -f "${config_dir}/geosite.dat" ]]; then
+        download_repo_config "geosite.dat"
+    fi
+    if [[ ! -f "${config_dir}/dns.json" ]]; then
+        download_repo_config "dns.json"
+    fi
+    if [[ ! -f "${config_dir}/route.json" ]]; then
+        download_repo_config "route.json"
+    fi
+    if [[ ! -f "${config_dir}/custom_outbound.json" ]]; then
+        download_repo_config "custom_outbound.json"
+    fi
+    if [[ ! -f "${config_dir}/custom_inbound.json" ]]; then
+        download_repo_config "custom_inbound.json"
+    fi
+
+    if [[ ! -f "${config_dir}/config.yml" ]]; then
+        if [[ -f "${install_dir}/config.yml" ]]; then
+            cp -f "${install_dir}/config.yml" "${config_dir}/config.yml"
+        elif [[ -f "${install_dir}/config.yml.example" ]]; then
+            cp -f "${install_dir}/config.yml.example" "${config_dir}/config.yml"
+        elif [[ -f "${install_dir}/release/config/config.yml.example" ]]; then
+            cp -f "${install_dir}/release/config/config.yml.example" "${config_dir}/config.yml"
+        else
+            download_repo_config "config.yml.example" "config.yml"
+        fi
+
+        echo "Fresh install detected. Please review ${config_dir}/config.yml before starting the service."
     else
-        systemctl start XrayR
+        systemctl start "${service_name}"
         sleep 2
         check_status
-        echo -e ""
-        if [[ $? == 0 ]]; then
-            echo -e "  XrayR đã khởi động lại thành công${plain}"
+        if [[ $? -eq 0 ]]; then
+            echo -e "XrayR restarted successfully."
         else
-            echo -e "  XrayR có thể không khởi động được, vui lòng sử dụng XrayR log để kiểm tra thông tin nhật ký sau này, nếu không khởi động được, định dạng cấu hình có thể đã bị thay đổi, vui lòng vào wiki để kiểm tra：https://github.com/XrayR-project/XrayR/wiki${plain}"
+            echo -e "${yellow}Warning:${plain} XrayR may not have started correctly. Check logs with: XrayR log"
         fi
     fi
 
-    if [[ ! -f /etc/XrayR/dns.json ]]; then
-        cp dns.json /etc/XrayR/
-    fi
-    if [[ ! -f /etc/XrayR/route.json ]]; then
-        cp route.json /etc/XrayR/
-    fi
-    if [[ ! -f /etc/XrayR/custom_outbound.json ]]; then
-        cp custom_outbound.json /etc/XrayR/
-    fi
-    curl -o /usr/bin/XrayR -Ls https://raw.githubusercontent.com/fsh2502/XrayR-release/main/XrayR.sh
-    chmod +x /usr/bin/XrayR
-    ln -s /usr/bin/XrayR /usr/bin/xrayr # chữ thường tương thích
-    chmod +x /usr/bin/xrayr
-    echo -e ""
-    echo "------------[Tài]------------"
-    echo "  Cách sử dụng tập lệnh quản lý XrayR (tương thích với thực thi xrayr, không phân biệt chữ hoa chữ thường): "
-    echo "------------------------------------------"
-    echo "  XrayR                    - Hiển thị menu quản lý (với nhiều chức năng hơn)"
-    echo "  XrayR start              - Khởi động XrayR"
-    echo "  XrayR stop               - Dừng XrayR"
-    echo "  XrayR restart            - Khởi động lại XrayR"
-    echo "  XrayR status             - Xem trạng thái XrayR"
-    echo "  XrayR enable             - Đặt XrayR để bắt đầu tự động"
-    echo "  XrayR disable            - Hủy tự động khởi động XrayR"
-    echo "  XrayR log                - Xem nhật ký XrayR"
-    echo "  XrayR update             - Cập nhật XrayR"
-    echo "  XrayR update x.x.x       - Cập nhật phiên bản được chỉ định XrayR"
-    echo "  XrayR config             - hiển thị nội dung tệp cấu hình"
-    echo "  XrayR install            - Cài đặt XrayR"
-    echo "  XrayR uninstall          - Gỡ cài đặt XrayR"
-    echo "  XrayR version            - Xem các phiên bản XrayR"
-    echo "------------------------------------------"
+    persist_installer_copy
+    create_manager_script
+
+    echo -e "XrayRTT ${green}${last_version}${plain} installed successfully."
+    echo ""
+    echo "XrayR management commands:"
+    echo "  XrayR                    - Show the management help"
+    echo "  XrayR start              - Start XrayR"
+    echo "  XrayR stop               - Stop XrayR"
+    echo "  XrayR restart            - Restart XrayR"
+    echo "  XrayR status             - Show XrayR status"
+    echo "  XrayR enable             - Enable auto-start"
+    echo "  XrayR disable            - Disable auto-start"
+    echo "  XrayR log                - Show XrayR logs"
+    echo "  XrayR update [version]   - Re-run the bundled installer"
+    echo "  XrayR config             - Show the config file"
+    echo "  XrayR uninstall          - Uninstall XrayR"
+    echo "  XrayR version            - Show installed version"
 }
 
-echo -e "  bắt đầu cài đặt ${plain}"
+echo -e "Starting installation..."
 install_base
 install_acme
-install_XrayR $1
+install_xrayr "${1:-}"
