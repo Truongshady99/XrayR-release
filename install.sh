@@ -122,7 +122,7 @@ install_XrayR() {
             exit 1
         fi
         echo -e "  Đã phát hiện phiên bản mới nhất của XrayR：${last_version}，bắt đầu cài đặt"
-        wget -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip https://github.com/fsh2502/XrayRTT/releases/download/${last_version}/XrayR-linux-${arch}.zip
+        wget -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip https://github.com/fsh2502/XrayRTT/archive/refs/tags/${last_version}/XrayR-linux-${arch}.zip
         if [[ $? -ne 0 ]]; then
             echo -e "  Không tải xuống được XrayR, hãy đảm bảo máy chủ của bạn có thể tải xuống tệp Github ${plain}"
             exit 1
