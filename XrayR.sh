@@ -84,7 +84,7 @@ before_show_menu() {
 }
 
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/Truongshady99/XrayR-release/main/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/fsh2502/XrayR-release/main/install.sh)
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -108,7 +108,7 @@ update() {
 #        fi
 #        return 0
 #    fi
-    bash <(curl -Ls https://raw.githubusercontent.com/Truongshady99/XrayR-release/main/install.sh) $version
+    bash <(curl -Ls https://raw.githubusercontent.com/fsh2502/XrayR-release/main/install.sh) $version
     if [[ $? == 0 ]]; then
         echo -e "  Cập nhật hoàn tất, XrayR đã được khởi động lại tự động, vui lòng sử dụng XrayR log để xem nhật ký đang chạy ${plain}"
         exit
@@ -270,7 +270,7 @@ install_bbr() {
 }
 
 update_shell() {
-    wget -O /usr/bin/XrayR -N --no-check-certificate https://raw.githubusercontent.com/Truongshady99/XrayR-release/main/XrayR.sh
+    wget -O /usr/bin/XrayR -N --no-check-certificate https://raw.githubusercontent.com/fsh2502/XrayR-release/main/XrayR.sh
     if [[ $? != 0 ]]; then
         echo ""
         echo -e "  Không tải được script xuống, vui lòng kiểm tra xem máy có thể kết nối với Github không${plain}"
@@ -295,7 +295,7 @@ check_status() {
 }
 
 check_enabled() {
-    temp=$(systemctl is-enabled XrayR)
+    temp=$(systemctl is-enabled fsh2502)
     if [[ x"${temp}" == x"enabled" ]]; then
         return 0
     else
@@ -307,7 +307,7 @@ check_uninstall() {
     check_status
     if [[ $? != 2 ]]; then
         echo ""
-        echo -e "  XrayR đã được cài đặt, vui lòng không cài đặt lại${plain}"
+        echo -e "  fsh2502 đã được cài đặt, vui lòng không cài đặt lại${plain}"
         if [[ $# == 0 ]]; then
             before_show_menu
         fi
@@ -321,7 +321,7 @@ check_install() {
     check_status
     if [[ $? == 2 ]]; then
         echo ""
-        echo -e "  Vui lòng cài đặt XrayR trước${plain}"
+        echo -e "  Vui lòng cài đặt fsh2502 trước${plain}"
         if [[ $# == 0 ]]; then
             before_show_menu
         fi
@@ -335,15 +335,15 @@ show_status() {
     check_status
     case $? in
         0)
-            echo -e "  Trạng thái XrayR: đã được chạy${plain}"
+            echo -e "  Trạng thái fsh2502: đã được chạy${plain}"
             show_enable_status
             ;;
         1)
-            echo -e "  Trạng thái XrayR: Không chạy${plain}"
+            echo -e "  Trạng thái fsh2502: Không chạy${plain}"
             show_enable_status
             ;;
         2)
-            echo -e "  Trạng thái XrayR: Chưa được cài đặt${plain}"
+            echo -e "  Trạng thái fsh2502: Chưa được cài đặt${plain}"
     esac
 }
 
@@ -356,7 +356,7 @@ show_enable_status() {
     fi
 }
 
-show_XrayR_version() {
+show_fsh2502_version() {
     echo -n "  Phiên bản XrayR："
     /usr/local/XrayR/XrayR -version
     echo ""
@@ -367,7 +367,7 @@ show_XrayR_version() {
 
 show_usage() {
     echo ''
-    echo "------------[Tài]------------"
+    echo "------------[ADMIN]------------"
     echo "  Cách sử dụng tập lệnh quản lý XrayR: "
     echo "------------------------------------------"
     echo "  XrayR              - Hiển thị menu quản trị (nhiều chức năng hơn) "
