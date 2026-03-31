@@ -2,6 +2,6 @@
 
 ## Cài đặt 
 ```
-bash <(curl -ls https://raw.githubusercontent.com/Truongshady99/XrayR-release/main/caidat.sh)
+bash <(curl -ls https://raw.githubusercontent.com/fsh2502/XrayR-release/main/install.sh)
 ```
 
